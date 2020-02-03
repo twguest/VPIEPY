@@ -237,7 +237,9 @@ class vPIE:
             self.probe_conj[i,0] = np.conj(self.probe[i,0] )
             self.probe_conj[i,1] = np.conj(self.probe[i,1] )
         
-        
+    def analvect(self, amode):
+        avect = np.array([np.cos(amode), np.sin(amode)])
+        return avect    
     def iterate(self):
         
         self.ddbeta = 0.25
@@ -252,6 +254,7 @@ class vPIE:
         self.rho_xx_max = np.max(np.abs(self.probe[0,0])**2 + np.abs(self.probe[1,0])**2 + np.abs(self.probe[2,0])**2)
         self.rho_yy_max = np.max(np.abs(self.probe[0,1])**2 + np.abs(self.probe[1,1])**2 + np.abs(self.probe[2,1])**2)
         
+
         
         for ii in np.arange(self.nruns):
 
@@ -301,43 +304,30 @@ class vPIE:
                             # we know the field is linearly polarised
                             # so change coords from (x,y) to (u,v) such that the field is polarised along u
                             # this allows us to represent the field in a scalar formalism ( only amp/phase )
+                            #scaESW = jones.rotate_coords(self.aESW, self.theta_a[l])[0]
                             scaESW = jones.rotate_coords(self.aESW, self.theta_a[l])[0]
-                        
                             # propagate to the detector
-                            ff_est = optics.downstream_prop(scaESW)
+                            ff_meas = optics.downstream_prop(scaESW)
                             
                             # copy into a temporary array
-                            #ff_est = np.copy(psi_det_est[k,l])
+                            #ff_meas = np.copy(psi_det_est[k,l])
                             
-                            threshval = 0.001 * np.max(np.abs(ff_est))
+                            threshval = 0.001 * np.max(np.abs(ff_meas))
                             
                             # apply the modulus constraint
-                            ft_guess = sp.where( ne.evaluate("real(abs(ff_est))") > threshval, ne.evaluate("real(abs(temp_diff_amp))*(ff_est/real(abs(ff_est)))") , 0.0 ).astype(self.c_dtype )
+                            ft_guess = sp.where( ne.evaluate("real(abs(ff_meas))") > threshval, ne.evaluate("real(abs(temp_diff_amp))*(ff_meas/real(abs(ff_meas)))") , 0.0 ).astype(self.c_dtype )
                             
                             # calculate the complex difference
-                            self.cplx_diff[k,l] = ft_guess - ff_est
+                            self.cplx_diff[k,l] = ft_guess - ff_meas
                             
                             # propagate the difference back to the exit surface of the analyser
                             #psi_analyser_est[k,l] = spf.fftshift( spf.ifft2( spf.fftshift( cplx_diff ) ) ) * padpix
 
                 
                 
-                            """ update probe """
-                            h = np.array([np.sum(abs(self.ctheta_a)**2),
-                                          np.sum(self.ctheta_a*np.conj(self.stheta_a)),
-                                          np.conj(np.sum(self.ctheta_a*np.conj(self.stheta_a))),
-                                          np.sum(abs(self.stheta_a)**2)])
                             
-                            h = h.reshape([2,2])
-                            print("h: {}".format(h.shape))
-                            print("trans: {}".format(self.trans[k,l].shape))
-                            Dn = np.diag(np.sum(np.conj(np.sum(self.trans[k,l].T)))*h*np.sum(self.trans[k,l]))
-                            print("Dn: {}".format(Dn.shape))
                             
-                            self.probe[k,l] = self.probe[k,l] - self.ddbetavec[i]/Dn
                             
-                            plt.imshow(np.imag(self.probe[k,l]))
-                            plt.show()                            
                 temp_arr1 = (self.ctheta_a[0]*self.cplx_diff[k,0]) + (self.ctheta_a[1]*self.cplx_diff[k,1]) + (self.ctheta_a[2]*self.cplx_diff[k,2])
                 self.arr_A[k,:,:] = optics.upstream_prop(temp_arr1)
                 
@@ -352,8 +342,37 @@ class vPIE:
                 trans_tmp[1,1] = trans_crop[1,1] + (self.ddbetavec[i]/self.rho_yy_max) * ( (self.probe_conj[0,1]*self.arr_B[0]) + (self.probe_conj[1,1]*self.arr_B[1]) + (self.probe_conj[2,1]*self.arr_B[2]) )
                 self.trans[ : , : , yi : yf , xi : xf ] = trans_tmp
                 
-                print(self.trans[ : , : , yi : yf , xi : xf ].shape)
-                
+                for j in range(self.ptych_num):
+                    
+                    jj = rand_pos[ j ]
+            
+                    # work out the ROI on the larger, object array that corresponds to the k^th projection
+                    x_region = np.int( self.rx + self.ix[ jj ] )
+                    y_region = np.int( self.ry + self.iy[ jj ] )
+            
+                    xi = x_region
+                    xf = x_region + self.padpix
+                    yi = y_region
+                    yf = y_region + self.padpix
+                    
+                    for k in range(self.pmodes):
+                        
+                        
+                        for l in range(self.amodes):
+                            print(self.trans.shape)
+                            obj_k = self.trans[ : , : , yi : yf , xi : xf]
+                            print(obj_k.shape)
+                            temp_probe = np.zeros(obj_k.shape)
+                            
+                            print(ff_meas.shape)
+                            print(self.analvect(l).shape)
+                            print(obj_k.shape)
+                            
+                            
+                            delta_p = np.conj(obj_k).T*optics.upstream_prop(np.cos(l)*ff_meas+np.sin(l)*ff_meas)
+                            print(delta_p.shape)
+                        
+                        
                 
                 
                 """ update probe """
@@ -382,7 +401,7 @@ class vPIE:
             """
         
 def run():
-    PIE = vPIE('C:/Users/twguest/OneDrive - LA TROBE UNIVERSITY/code/data_for_trey/sim_data/henry_02/', iterations = 2)
+    PIE = vPIE('/opt/data/sim_data/henry_02/', iterations = 2)
     PIE.load_data()
     PIE.guess_probe()
     PIE.iterate()
