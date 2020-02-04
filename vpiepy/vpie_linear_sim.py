@@ -297,28 +297,28 @@ class vPIE:
                             # store the diffraction data in a temp array
                             #temp_diff_amp = data[k,l,jj]
                             temp_diff_amp = self.data[jj,k,l]
-        
+                            print("data", self.data.shape)
+                            print("temp_diff_amp", temp_diff_amp.shape)
                             # propagate through the analyser
                             self.aESW = jones.prop_through_lin_pol(self.esw, self.theta_a[l])
                             
                             # we know the field is linearly polarised
                             # so change coords from (x,y) to (u,v) such that the field is polarised along u
                             # this allows us to represent the field in a scalar formalism ( only amp/phase )
+                            scaESW = jones.rotate_coords(self.aESW, self.theta_a[l])
                             #scaESW = jones.rotate_coords(self.aESW, self.theta_a[l])[0]
-                            scaESW = jones.rotate_coords(self.aESW, self.theta_a[l])[0]
+                            print("ESW", scaESW.shape)
                             # propagate to the detector
                             ff_meas = optics.downstream_prop(scaESW)
                             
-                            # copy into a temporary array
-                            #ff_meas = np.copy(psi_det_est[k,l])
-                            
+
                             threshval = 0.001 * np.max(np.abs(ff_meas))
                             
                             # apply the modulus constraint
                             ft_guess = sp.where( ne.evaluate("real(abs(ff_meas))") > threshval, ne.evaluate("real(abs(temp_diff_amp))*(ff_meas/real(abs(ff_meas)))") , 0.0 ).astype(self.c_dtype )
                             
                             # calculate the complex difference
-                            self.cplx_diff[k,l] = ft_guess - ff_meas
+                            ####self.cplx_diff[k,l] = ft_guess - ff_meas
                             
                             # propagate the difference back to the exit surface of the analyser
                             #psi_analyser_est[k,l] = spf.fftshift( spf.ifft2( spf.fftshift( cplx_diff ) ) ) * padpix
@@ -328,19 +328,21 @@ class vPIE:
                             
                             
                             
-                temp_arr1 = (self.ctheta_a[0]*self.cplx_diff[k,0]) + (self.ctheta_a[1]*self.cplx_diff[k,1]) + (self.ctheta_a[2]*self.cplx_diff[k,2])
-                self.arr_A[k,:,:] = optics.upstream_prop(temp_arr1)
-                
-                temp_arr2 = (self.stheta_a[0]*self.cplx_diff[k,0]) + (self.stheta_a[1]*self.cplx_diff[k,1]) + (self.stheta_a[2]*self.cplx_diff[k,2])
-                self.arr_B[k,:,:] = optics.upstream_prop(temp_arr2)
-            
-
-            
-                trans_tmp[0,0] = trans_crop[0,0] + (self.ddbetavec[i]/self.rho_xx_max) * ( (self.probe_conj[0,0]*self.arr_A[0]) + (self.probe_conj[1,0]*self.arr_A[1]) + (self.probe_conj[2,0]*self.arr_A[2]) )
-                trans_tmp[0,1] = trans_crop[0,1] + (self.ddbetavec[i]/self.rho_yy_max) * ( (self.probe_conj[0,1]*self.arr_A[0]) + (self.probe_conj[1,1]*self.arr_A[1]) + (self.probe_conj[2,1]*self.arr_A[2]) )
-                trans_tmp[1,0] = trans_crop[1,0] + (self.ddbetavec[i]/self.rho_xx_max) * ( (self.probe_conj[0,0]*self.arr_B[0]) + (self.probe_conj[1,0]*self.arr_B[1]) + (self.probe_conj[2,0]*self.arr_B[2]) )
-                trans_tmp[1,1] = trans_crop[1,1] + (self.ddbetavec[i]/self.rho_yy_max) * ( (self.probe_conj[0,1]*self.arr_B[0]) + (self.probe_conj[1,1]*self.arr_B[1]) + (self.probe_conj[2,1]*self.arr_B[2]) )
-                self.trans[ : , : , yi : yf , xi : xf ] = trans_tmp
+# =============================================================================
+#                 temp_arr1 = (self.ctheta_a[0]*self.cplx_diff[k,0]) + (self.ctheta_a[1]*self.cplx_diff[k,1]) + (self.ctheta_a[2]*self.cplx_diff[k,2])
+#                 self.arr_A[k,:,:] = optics.upstream_prop(temp_arr1)
+#                 
+#                 temp_arr2 = (self.stheta_a[0]*self.cplx_diff[k,0]) + (self.stheta_a[1]*self.cplx_diff[k,1]) + (self.stheta_a[2]*self.cplx_diff[k,2])
+#                 self.arr_B[k,:,:] = optics.upstream_prop(temp_arr2)
+#             
+# 
+#             
+#                 trans_tmp[0,0] = trans_crop[0,0] + (self.ddbetavec[i]/self.rho_xx_max) * ( (self.probe_conj[0,0]*self.arr_A[0]) + (self.probe_conj[1,0]*self.arr_A[1]) + (self.probe_conj[2,0]*self.arr_A[2]) )
+#                 trans_tmp[0,1] = trans_crop[0,1] + (self.ddbetavec[i]/self.rho_yy_max) * ( (self.probe_conj[0,1]*self.arr_A[0]) + (self.probe_conj[1,1]*self.arr_A[1]) + (self.probe_conj[2,1]*self.arr_A[2]) )
+#                 trans_tmp[1,0] = trans_crop[1,0] + (self.ddbetavec[i]/self.rho_xx_max) * ( (self.probe_conj[0,0]*self.arr_B[0]) + (self.probe_conj[1,0]*self.arr_B[1]) + (self.probe_conj[2,0]*self.arr_B[2]) )
+#                 trans_tmp[1,1] = trans_crop[1,1] + (self.ddbetavec[i]/self.rho_yy_max) * ( (self.probe_conj[0,1]*self.arr_B[0]) + (self.probe_conj[1,1]*self.arr_B[1]) + (self.probe_conj[2,1]*self.arr_B[2]) )
+#                 self.trans[ : , : , yi : yf , xi : xf ] = trans_tmp
+# =============================================================================
                 
                 for j in range(self.ptych_num):
                     
@@ -357,21 +359,28 @@ class vPIE:
                     
                     for k in range(self.pmodes):
                         
+                        print("probe", self.probe.shape)
                         
                         for l in range(self.amodes):
                             print(self.trans.shape)
                             obj_k = self.trans[ : , : , yi : yf , xi : xf]
-                            print(obj_k.shape)
+                            print("cropped object", obj_k.shape)
                             temp_probe = np.zeros(obj_k.shape)
                             
-                            print(ff_meas.shape)
-                            print(self.analvect(l).shape)
-                            print(obj_k.shape)
+
+                            delta_p = np.zeros(self.probe.shape).astype(np.dtype('complex64'))
+                            delta_p[k,0] = np.conj(obj_k[0,0]).T*optics.upstream_prop(np.cos(l)*ff_meas[0]+np.sin(l)*ff_meas[1])
+                            delta_p[k,0] += np.conj(obj_k[1,0]).T*optics.upstream_prop(np.cos(l)*ff_meas[0]+np.sin(l)*ff_meas[1])
+                            
+                            delta_p[k,1] = np.conj(obj_k[1,0]).T*optics.upstream_prop(np.cos(l)*ff_meas[0]+np.sin(l)*ff_meas[1])
+                            delta_p[k,1] += np.conj(obj_k[1,1]).T*optics.upstream_prop(np.cos(l)*ff_meas[0]+np.sin(l)*ff_meas[1])
                             
                             
-                            delta_p = np.conj(obj_k).T*optics.upstream_prop(np.cos(l)*ff_meas+np.sin(l)*ff_meas)
-                            print(delta_p.shape)
-                        
+                            modfact =  np.sqrt(ff_meas**2/ft_guess**2)-1
+                            delta_p[k] *= modfact
+                        print(self.probe.shape, delta_p.shape)
+                        self.probe = self.probe - delta_p
+                        print("MODEERATE SUCCESS")
                         
                 
                 
@@ -390,8 +399,8 @@ class vPIE:
                 
                 #print("iteration: {}".format(i))
                 #plt.imshow(np.imag(self.trans[0,0]))
-                plt.imshow(np.imag(self.probe))
-                plt.show()
+                #plt.imshow(np.imag(self.probe))
+                #plt.show()
             current_fname = "jones_guess_%02d" % ii + "_r" + str(self.rebpix) + "_p" + str(self.padpix) + "_f" + str(self.sampix) + ".npy"
 
             
