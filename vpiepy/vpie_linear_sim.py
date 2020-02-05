@@ -165,7 +165,8 @@ class vPIE:
         # ... transform angles from degrees to radians
         self.theta_p = np.radians(self.theta_p)
         self.theta_a = np.radians(self.theta_a)
-
+        print(self.theta_a)
+        print(tjheta)
         self.stheta_p = np.sin( self.theta_p )
         self.ctheta_p = np.cos( self.theta_p )
         
@@ -328,21 +329,19 @@ class vPIE:
                             
                             
                             
-# =============================================================================
-#                 temp_arr1 = (self.ctheta_a[0]*self.cplx_diff[k,0]) + (self.ctheta_a[1]*self.cplx_diff[k,1]) + (self.ctheta_a[2]*self.cplx_diff[k,2])
-#                 self.arr_A[k,:,:] = optics.upstream_prop(temp_arr1)
-#                 
-#                 temp_arr2 = (self.stheta_a[0]*self.cplx_diff[k,0]) + (self.stheta_a[1]*self.cplx_diff[k,1]) + (self.stheta_a[2]*self.cplx_diff[k,2])
-#                 self.arr_B[k,:,:] = optics.upstream_prop(temp_arr2)
-#             
-# 
-#             
-#                 trans_tmp[0,0] = trans_crop[0,0] + (self.ddbetavec[i]/self.rho_xx_max) * ( (self.probe_conj[0,0]*self.arr_A[0]) + (self.probe_conj[1,0]*self.arr_A[1]) + (self.probe_conj[2,0]*self.arr_A[2]) )
-#                 trans_tmp[0,1] = trans_crop[0,1] + (self.ddbetavec[i]/self.rho_yy_max) * ( (self.probe_conj[0,1]*self.arr_A[0]) + (self.probe_conj[1,1]*self.arr_A[1]) + (self.probe_conj[2,1]*self.arr_A[2]) )
-#                 trans_tmp[1,0] = trans_crop[1,0] + (self.ddbetavec[i]/self.rho_xx_max) * ( (self.probe_conj[0,0]*self.arr_B[0]) + (self.probe_conj[1,0]*self.arr_B[1]) + (self.probe_conj[2,0]*self.arr_B[2]) )
-#                 trans_tmp[1,1] = trans_crop[1,1] + (self.ddbetavec[i]/self.rho_yy_max) * ( (self.probe_conj[0,1]*self.arr_B[0]) + (self.probe_conj[1,1]*self.arr_B[1]) + (self.probe_conj[2,1]*self.arr_B[2]) )
-#                 self.trans[ : , : , yi : yf , xi : xf ] = trans_tmp
-# =============================================================================
+                temp_arr1 = (self.ctheta_a[0]*self.cplx_diff[k,0]) + (self.ctheta_a[1]*self.cplx_diff[k,1]) + (self.ctheta_a[2]*self.cplx_diff[k,2])
+                self.arr_A[k,:,:] = optics.upstream_prop(temp_arr1)
+                
+                temp_arr2 = (self.stheta_a[0]*self.cplx_diff[k,0]) + (self.stheta_a[1]*self.cplx_diff[k,1]) + (self.stheta_a[2]*self.cplx_diff[k,2])
+                self.arr_B[k,:,:] = optics.upstream_prop(temp_arr2)
+            
+
+            
+                trans_tmp[0,0] = trans_crop[0,0] + (self.ddbetavec[i]/self.rho_xx_max) * ( (self.probe_conj[0,0]*self.arr_A[0]) + (self.probe_conj[1,0]*self.arr_A[1]) + (self.probe_conj[2,0]*self.arr_A[2]) )
+                trans_tmp[0,1] = trans_crop[0,1] + (self.ddbetavec[i]/self.rho_yy_max) * ( (self.probe_conj[0,1]*self.arr_A[0]) + (self.probe_conj[1,1]*self.arr_A[1]) + (self.probe_conj[2,1]*self.arr_A[2]) )
+                trans_tmp[1,0] = trans_crop[1,0] + (self.ddbetavec[i]/self.rho_xx_max) * ( (self.probe_conj[0,0]*self.arr_B[0]) + (self.probe_conj[1,0]*self.arr_B[1]) + (self.probe_conj[2,0]*self.arr_B[2]) )
+                trans_tmp[1,1] = trans_crop[1,1] + (self.ddbetavec[i]/self.rho_yy_max) * ( (self.probe_conj[0,1]*self.arr_B[0]) + (self.probe_conj[1,1]*self.arr_B[1]) + (self.probe_conj[2,1]*self.arr_B[2]) )
+                self.trans[ : , : , yi : yf , xi : xf ] = trans_tmp
                 
                 for j in range(self.ptych_num):
                     
