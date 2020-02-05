@@ -29,6 +29,7 @@ from math import cos, sin
 from tqdm import tqdm, trange
 from matplotlib import pyplot as plt
 
+from vis_utils import plot_probe
 
 pi = np.pi
 
@@ -323,8 +324,9 @@ def reconstruction(config, data, probe, update = 'object'):
             
             if update == 'probe' or 'both':
                 probe = probe - delta_p
+                plot_probe(probe)
                 ### to be extended in the immediate future            
-    return obj
+    return obj, probe
 
 
 if __name__ == '__main__':
@@ -340,5 +342,5 @@ if __name__ == '__main__':
     probe = calc_probe(config)
     print("initialising probe guess: Pass")
     
-    reconstruction(config, data, probe, update = 'both')
+    obj, probe = reconstruction(config, data, probe, update = 'probe')
     
