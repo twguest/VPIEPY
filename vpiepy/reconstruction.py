@@ -109,7 +109,9 @@ class config:
 def load_data(config):
     
     """
-    load from data structure relevant to Guido Cadenazzi's optical system
+    :param config: config object containing relevant experimental definitions
+    
+    :returns data: experimental data [scans, pmodes, amodes, x, y]
     """
     
     config.theta_p, config.theta_a = np.zeros(config.pmodes), np.zeros(config.amodes)
@@ -150,7 +152,6 @@ def load_data(config):
                     filename = "position_%04d_int.npy" % k
                     
                     config.full_filename = config.scan_path + config.subdir + config.procdir + filename
-        
                     data[j,k,l,config.spx:config.epx,config.spx:config.epx] = np.sqrt(np.load(config.full_filename))
                     
                     data_energy[j,k,l,] = np.sum(data[j,k,l,config.spx:config.epx,config.spx:config.epx]**2 )
@@ -182,9 +183,14 @@ def load_data(config):
 
         return data
 
+
+
 def calc_probe(config):
+    
     """
-    make initial guess of probe
+    :param config: configuration object
+    
+    :returns probe: a priori probe estimate [pmodes, polarisation components, x, y]
     """
     
     cplx = complex(0,1) # complex component
@@ -209,7 +215,16 @@ def calc_probe(config):
   
 def reconstruction(config, data, probe, update = 'object'):
     
+    """
+    main reconstruction algorithm for joint estimation of probe and object
     
+    :param config: configuration object
+    :param data: experimental data [scans, pmodes, amodes, x, y]
+    :param probe: probe estimate [pmodes, polarisation components, x, y]
+    
+    :returns obj: object estimate 
+    :returns probe: probe estimate
+    """
     
     cplx_diff = np.zeros((config.pmodes, config.amodes, config.padpix, config.padpix)).astype(config.c_dtype)
     
@@ -282,29 +297,30 @@ def reconstruction(config, data, probe, update = 'object'):
                         scaESW = jones.rotate_coords(aESW, config.theta_a[l])
                         #scaESW = jones.rotate_coords(self.aESW, self.theta_a[l])[0]
                         # propagate to the detector
-                        ff_meas = optics.downstream_prop(scaESW)
-                        
-
-                        threshval = 0.001 * np.max(np.abs(ff_meas))
-                        ff_calc = sp.where( ne.evaluate("real(abs(ff_meas))") > threshval, ne.evaluate("real(abs(temp_diff_amp))*(ff_meas/real(abs(ff_meas)))") , 0.0 ).astype(config.c_dtype )
-
+                        ff_calc = optics.downstream_prop(scaESW)
+                        threshval = 0.001
+                        ff_meas = data[jj, k, l,]
+                        print(data[jj, k, l,].shape)
+                        #threshval = 0.001 * np.max(np.abs(ff_meas))
+                        #ff_calc = sp.where( ne.evaluate("real(abs(ff_meas))") > threshval, ne.evaluate("real(abs(temp_diff_amp))*(ff_meas/real(abs(ff_meas)))") , 0.0 ).astype(config.c_dtype )
+                        print(ff_calc[0,:,:].shape)
                         if update == 'object' or 'both':
 
                             # calculate the complex difference
-                            cplx_diff[k,l] = ff_calc[0] - ff_meas[0]
+                            cplx_diff[k,l] = ff_calc[0,:,:] - ff_meas
                             
                      
                         if update == 'probe' or 'both':
                             delta_p = np.zeros(probe.shape).astype(config.c_dtype)
-                            delta_p[k,0] = np.conj(trans_crop[0,0]).T*optics.upstream_prop(np.cos(l)*ff_meas[0]+np.sin(l)*ff_meas[1])
-                            delta_p[k,0] += np.conj(trans_crop[1,0]).T*optics.upstream_prop(np.cos(l)*ff_meas[0]+np.sin(l)*ff_meas[1])
+                            delta_p[k,0] = np.conj(trans_crop[0,0]).T*optics.upstream_prop(np.cos(l)*ff_calc[0]+np.sin(l)*ff_calc[1])
+                            delta_p[k,0] += np.conj(trans_crop[1,0]).T*optics.upstream_prop(np.cos(l)*ff_calc[0]+np.sin(l)*ff_calc[1])
                             
-                            delta_p[k,1] = np.conj(trans_crop[1,0]).T*optics.upstream_prop(np.cos(l)*ff_meas[0]+np.sin(l)*ff_meas[1])
-                            delta_p[k,1] += np.conj(trans_crop[1,1]).T*optics.upstream_prop(np.cos(l)*ff_meas[0]+np.sin(l)*ff_meas[1])
+                            delta_p[k,1] = np.conj(trans_crop[1,0]).T*optics.upstream_prop(np.cos(l)*ff_calc[0]+np.sin(l)*ff_calc[1])
+                            delta_p[k,1] += np.conj(trans_crop[1,1]).T*optics.upstream_prop(np.cos(l)*ff_calc[0]+np.sin(l)*ff_calc[1])
                             
-                            
-                            modfact =  np.sqrt(ff_meas**2/ff_calc**2)-1
-                            delta_p[k] *= modfact
+                            ff_error = sp.where( ne.evaluate("real(abs(ff_meas))") > threshval, ne.evaluate("((ff_meas)**2/(ff_calc)**2)-1") , 0.0 ).astype(config.c_dtype )
+                            modfact =  np.real(np.sqrt(ff_error))
+                            delta_p[k] *= ff_error
                         
             if update == 'object' or 'both':
                 temp_arr1 = (cos(config.theta_a[0])*cplx_diff[k,0]) + (cos(config.theta_a[1])*cplx_diff[k,1]) + (cos(config.theta_a[2])*cplx_diff[k,2])
@@ -323,9 +339,10 @@ def reconstruction(config, data, probe, update = 'object'):
                 obj[ : , : , yi : yf , xi : xf ] = obj_tmp
             
             if update == 'probe' or 'both':
-                probe = probe - delta_p
-                plot_probe(probe)
-                ### to be extended in the immediate future            
+                probe = probe + delta_p
+                plot_probe(config, probe)
+                ### to be extended in the immediate future    
+                
     return obj, probe
 
 
@@ -333,7 +350,7 @@ if __name__ == '__main__':
     
     print("Testing internal operations")
     
-    config = config('/opt/data/sim_data/henry_02/')
+    config = config('/opt/data/sim_data/henry_02/', iterations = 5)
     print("config class: Pass")
     
     data = load_data(config)
@@ -342,5 +359,5 @@ if __name__ == '__main__':
     probe = calc_probe(config)
     print("initialising probe guess: Pass")
     
-    obj, probe = reconstruction(config, data, probe, update = 'probe')
-    
+    obj, probe = reconstruction(config, data, probe, update = 'object')
+    plot_probe(config, probe)
