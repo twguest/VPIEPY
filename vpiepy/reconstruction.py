@@ -31,6 +31,8 @@ from matplotlib import pyplot as plt
 
 from vis_utils import plot_probe
 
+from matplotlib import pyplot as plt
+
 pi = np.pi
 
 class config:
@@ -298,18 +300,19 @@ def reconstruction(config, data, probe, update = 'object'):
                         #scaESW = jones.rotate_coords(self.aESW, self.theta_a[l])[0]
                         # propagate to the detector
                         ff_calc = optics.downstream_prop(scaESW)
-                        threshval = 0.001
+                        
                         ff_meas = data[jj, k, l,]
-                        print(data[jj, k, l,].shape)
-                        #threshval = 0.001 * np.max(np.abs(ff_meas))
-                        #ff_calc = sp.where( ne.evaluate("real(abs(ff_meas))") > threshval, ne.evaluate("real(abs(temp_diff_amp))*(ff_meas/real(abs(ff_meas)))") , 0.0 ).astype(config.c_dtype )
-                        print(ff_calc[0,:,:].shape)
-                        if update == 'object' or 'both':
+                        threshval = 0.001 * np.max(np.abs(ff_meas))
 
-                            # calculate the complex difference
-                            cplx_diff[k,l] = ff_calc[0,:,:] - ff_meas
+                        ff_meas = sp.where( ne.evaluate("real(abs(ff_meas))") > threshval, ne.evaluate("real(abs(ff_calc))*(ff_meas/abs(ff_meas))") , 0.0 ).astype(config.c_dtype )
+
+                
+                        if update == 'object' or 'both':
+                             # calculate the complex difference
+                            cplx_diff[k,l] = ff_calc[0] - ff_meas[0]
                             
-                     
+
+                        
                         if update == 'probe' or 'both':
                             delta_p = np.zeros(probe.shape).astype(config.c_dtype)
                             delta_p[k,0] = np.conj(trans_crop[0,0]).T*optics.upstream_prop(np.cos(l)*ff_calc[0]+np.sin(l)*ff_calc[1])
