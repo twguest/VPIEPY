@@ -29,7 +29,7 @@ from math import cos, sin
 from tqdm import tqdm, trange
 from matplotlib import pyplot as plt
 
-from vis_utils import plot_probe
+from vis_utils import plot_probe, plot_obj
 
 from matplotlib import pyplot as plt
 
@@ -435,10 +435,13 @@ def reconstruction(config, data, probe, update="object"):
                 )
 
                 obj[:, :, yi:yf, xi:xf] = obj_tmp
+                
+                plot_obj(config, obj)
 
             if update == "probe" or "both":
                 probe = probe + delta_p
                 plot_probe(config, probe)
+                
                 ### to be extended in the immediate future
 
     return obj, probe
@@ -457,6 +460,7 @@ if __name__ == "__main__":
     probe = calc_probe(config)
     print("initialising probe guess: Pass")
 
-    obj, probe = reconstruction(config, data, probe, update="object")
+    obj, probe = reconstruction(config, data, probe, update="both")
     print(obj.shape)
     plot_probe(config, probe)
+    plot_obj(config, obj)
