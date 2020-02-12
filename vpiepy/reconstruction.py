@@ -31,8 +31,8 @@ from matplotlib import pyplot as plt
 
 from vis_utils import plot_probe, plot_obj
 
-from matplotlib import pyplot as plt
-
+from copy import copy
+from sklearn.preprocessing import minmax_scale as norm
 pi = np.pi
 
 
@@ -158,7 +158,6 @@ def load_data(config):
                     np.radians(config.theta_p),
                     np.radians(config.theta_a),
                 )
-
                 for j in np.arange(config.npts):
 
                     config.procdir = (
@@ -245,8 +244,16 @@ def calc_probe(config):
 
     for i in range(config.pmodes):
         probe[i] = jones.prop_through_hwp(beam, config.theta_p[i] / 2.0)
+    
+    probe = np.random.rand(3,2,256,256)+np.random.rand(3,2,256,256)*1j
 
+    
     return probe
+
+def analysis_op(l):
+    h = np.array([cos(l), sin(l)]).reshape([2,1])
+    return h
+
 
 
 def reconstruction(config, data, probe, update="object"):
@@ -267,14 +274,15 @@ def reconstruction(config, data, probe, update="object"):
     ).astype(config.c_dtype)
 
     obj = np.load(config.scan_path + "jones_guess_avg_r256_p256_f1024.npy")
-
+    #obj += np.random.rand(2,2,1024,1024)+np.random.rand(2,2,1024,1024)*1j
+    
     config.ddbeta = 0.25
     config.ddbetavec = np.zeros(config.iterations)
 
-    config.ddbetavec[0 * config.iterations // 4 : 1 * config.iterations // 4] = 0.5
-    config.ddbetavec[1 * config.iterations // 4 : 2 * config.iterations // 4] = 0.6
-    config.ddbetavec[2 * config.iterations // 4 : 3 * config.iterations // 4] = 0.7
-    config.ddbetavec[3 * config.iterations // 4 : 4 * config.iterations // 4] = 0.8
+    config.ddbetavec[0 * config.iterations // 4 : 1 * config.iterations // 4] = 0.25
+    config.ddbetavec[1 * config.iterations // 4 : 2 * config.iterations // 4] = 0.01
+    config.ddbetavec[2 * config.iterations // 4 : 3 * config.iterations // 4] = 0.01
+    config.ddbetavec[3 * config.iterations // 4 : 4 * config.iterations // 4] = 0.01
 
     # probe[mode, plane] so probe[0,1] = probe[0th mode, y-plane] and probe[2,0] = probe[2nd mode, x-plane]
     config.rho_xx_max = np.max(
@@ -310,7 +318,7 @@ def reconstruction(config, data, probe, update="object"):
 
                 jj = rand_pos[j]
 
-                # work out the ROI on the larger, object array that corresponds to the k^th projection
+                # work out the ROI on the larger object array that corresponds to the k^th projection
                 x_region = np.int(config.rx + config.ix[jj])
                 y_region = np.int(config.ry + config.iy[jj])
 
@@ -320,127 +328,140 @@ def reconstruction(config, data, probe, update="object"):
                 yf = y_region + config.padpix
 
                 # crop out the relevant part of the sample
-                trans_crop = np.copy(obj[:, :, yi:yf, xi:xf])
+                trans_crop = copy(obj[:, :, yi:yf, xi:xf])
 
                 # loop over the number of incident polarisation settings
                 for k in np.arange(config.pmodes):
-
                     esw = jones.jones_product(trans_crop, probe[k])
-
+                    
                     # loop over the number of analyser settings
                     for l in np.arange(config.amodes):
+                        delta_p = np.zeros(probe.shape).astype(config.c_dtype)
 
                         # store the diffraction data in a temp array
-                        temp_diff_amp = data[jj, k, l]
+                        temp_diff_amp = copy(data[jj, k, l])
                         # propagate through the analyser
                         aESW = jones.prop_through_lin_pol(esw, config.theta_a[l])
 
                         # we know the field is linearly polarised
                         # so change coords from (x,y) to (u,v) such that the field is polarised along u
                         # this allows us to represent the field in a scalar formalism ( only amp/phase )
-                        scaESW = jones.rotate_coords(aESW, config.theta_a[l])
-                        # scaESW = jones.rotate_coords(self.aESW, self.theta_a[l])[0]
+                        scaESW = jones.rotate_coords(aESW, config.theta_a[l])[0]
                         # propagate to the detector
                         ff_calc = optics.downstream_prop(scaESW)
 
-                        ff_meas = data[
+                        ff_meas = copy(data[
                             jj, k, l,
-                        ]
-                        threshval = 0.001 * np.max(np.abs(ff_meas))
+                        ])
+                        
+                        threshval = 0.001*np.max(abs(ff_meas))
 
+                        
                         ff_meas = sp.where(
                             ne.evaluate("real(abs(ff_meas))") > threshval,
                             ne.evaluate("real(abs(ff_calc))*(ff_meas/abs(ff_meas))"),
                             0.0,
                         ).astype(config.c_dtype)
 
+                        
                         if update == "object" or "both":
                             # calculate the complex difference
-                            cplx_diff[k, l] = ff_calc[0] - ff_meas[0]
-
+                            #cplx_diff[k, l] = ff_calc[0] - ff_meas[0]
+                            pass
                         if update == "probe" or "both":
-                            delta_p = np.zeros(probe.shape).astype(config.c_dtype)
                             delta_p[k, 0] = np.conj(
                                 trans_crop[0, 0]
                             ).T * optics.upstream_prop(
-                                np.cos(l) * ff_calc[0] + np.sin(l) * ff_calc[1]
+                                np.cos(l) * ff_calc + np.sin(l) * ff_calc
                             )
                             delta_p[k, 0] += np.conj(
                                 trans_crop[1, 0]
                             ).T * optics.upstream_prop(
-                                np.cos(l) * ff_calc[0] + np.sin(l) * ff_calc[1]
+                                np.cos(l) * ff_calc + np.sin(l) * ff_calc
                             )
 
                             delta_p[k, 1] = np.conj(
                                 trans_crop[1, 0]
                             ).T * optics.upstream_prop(
-                                np.cos(l) * ff_calc[0] + np.sin(l) * ff_calc[1]
+                                np.cos(l) * ff_calc + np.sin(l) * ff_calc
                             )
                             delta_p[k, 1] += np.conj(
                                 trans_crop[1, 1]
                             ).T * optics.upstream_prop(
-                                np.cos(l) * ff_calc[0] + np.sin(l) * ff_calc[1]
+                                np.cos(l) * ff_calc + np.sin(l) * ff_calc
                             )
 
                             ff_error = sp.where(
-                                ne.evaluate("real(abs(ff_meas))") > threshval,
+                                ne.evaluate("real(abs(ff_meas))") > 0,
                                 ne.evaluate("((ff_meas)**2/(ff_calc)**2)-1"),
                                 0.0,
                             ).astype(config.c_dtype)
-                            modfact = np.real(np.sqrt(ff_error))
-                            delta_p[k] *= ff_error
+                            modfact = np.sqrt(ff_error)
+ 
+                            lx,ly = list(config.theta_a), list(config.theta_a)
+                            ly.reverse()
+                            
+                            axx, ayy = 0,0
+                            for l in range(len(lx)):
+                                axx += np.abs(analysis_op(lx[l])**2)
+                                axx += np.abs(analysis_op(ly[l])**2)
+                            
+                            D = np.diag( np.conj(obj * 2 ))#scaling factor))
+            probe = probe + delta_p *(1/D)
+            plot_probe(config, probe)
 
-            if update == "object" or "both":
-                temp_arr1 = (
-                    (cos(config.theta_a[0]) * cplx_diff[k, 0])
-                    + (cos(config.theta_a[1]) * cplx_diff[k, 1])
-                    + (cos(config.theta_a[2]) * cplx_diff[k, 2])
-                )
-                arr_A[k, :, :] = optics.upstream_prop(temp_arr1)
-
-                temp_arr2 = (
-                    (sin(config.theta_a[0]) * cplx_diff[k, 0])
-                    + (sin(config.theta_a[1]) * cplx_diff[k, 1])
-                    + (sin(config.theta_a[2]) * cplx_diff[k, 2])
-                )
-                arr_B[k, :, :] = optics.upstream_prop(temp_arr2)
-
-                obj_tmp[0, 0] = trans_crop[0, 0] + (
-                    config.ddbetavec[itr] / config.rho_xx_max
-                ) * (
-                    (np.conj(probe)[0, 0] * arr_A[0])
-                    + (np.conj(probe)[1, 0] * arr_A[1])
-                    + (np.conj(probe)[2, 0] * arr_A[2])
-                )
-                obj_tmp[0, 1] = trans_crop[0, 1] + (
-                    config.ddbetavec[itr] / config.rho_xx_max
-                ) * (
-                    (np.conj(probe)[0, 1] * arr_A[0])
-                    + (np.conj(probe)[1, 1] * arr_A[1])
-                    + (np.conj(probe)[2, 1] * arr_A[2])
-                )
-                obj_tmp[1, 0] = trans_crop[1, 0] + (
-                    config.ddbetavec[itr] / config.rho_xx_max
-                ) * (
-                    (np.conj(probe)[0, 0] * arr_A[0])
-                    + (np.conj(probe)[1, 0] * arr_A[1])
-                    + (np.conj(probe)[2, 0] * arr_A[2])
-                )
-                obj_tmp[1, 1] = trans_crop[1, 1] + (
-                    config.ddbetavec[itr] / config.rho_xx_max
-                ) * (
-                    (np.conj(probe)[0, 1] * arr_A[0])
-                    + (np.conj(probe)[1, 1] * arr_A[1])
-                    + (np.conj(probe)[2, 1] * arr_A[2])
-                )
-
-                obj[:, :, yi:yf, xi:xf] = obj_tmp
-                
-                plot_obj(config, obj)
-
-            if update == "probe" or "both":
-                probe = probe + delta_p
-                plot_probe(config, probe)
+# =============================================================================
+# 
+#                 if update == "object" or "both":
+#                     temp_arr1 = (
+#                         (cos(config.theta_a[0]) * cplx_diff[k, 0])
+#                         + (cos(config.theta_a[1]) * cplx_diff[k, 1])
+#                         + (cos(config.theta_a[2]) * cplx_diff[k, 2])
+#                     )
+#                     arr_A[k, :, :] = optics.upstream_prop(temp_arr1)
+#     
+#                     temp_arr2 = (
+#                         (sin(config.theta_a[0]) * cplx_diff[k, 0])
+#                         + (sin(config.theta_a[1]) * cplx_diff[k, 1])
+#                         + (sin(config.theta_a[2]) * cplx_diff[k, 2])
+#                     )
+#                     arr_B[k, :, :] = optics.upstream_prop(temp_arr2)
+#     
+#                     obj_tmp[0, 0] = trans_crop[0, 0] + (
+#                         config.ddbetavec[itr] / config.rho_xx_max
+#                     ) * (
+#                         (np.conj(probe)[0, 0] * arr_A[0])
+#                         + (np.conj(probe)[1, 0] * arr_A[1])
+#                         + (np.conj(probe)[2, 0] * arr_A[2])
+#                     )
+#                     obj_tmp[0, 1] = trans_crop[0, 1] + (
+#                         config.ddbetavec[itr] / config.rho_xx_max
+#                     ) * (
+#                         (np.conj(probe)[0, 1] * arr_A[0])
+#                         + (np.conj(probe)[1, 1] * arr_A[1])
+#                         + (np.conj(probe)[2, 1] * arr_A[2])
+#                     )
+#                     obj_tmp[1, 0] = trans_crop[1, 0] + (
+#                         config.ddbetavec[itr] / config.rho_xx_max
+#                     ) * (
+#                         (np.conj(probe)[0, 0] * arr_A[0])
+#                         + (np.conj(probe)[1, 0] * arr_A[1])
+#                         + (np.conj(probe)[2, 0] * arr_A[2])
+#                     )
+#                     obj_tmp[1, 1] = trans_crop[1, 1] + (
+#                         config.ddbetavec[itr] / config.rho_xx_max
+#                     ) * (
+#                         (np.conj(probe)[0, 1] * arr_A[0])
+#                         + (np.conj(probe)[1, 1] * arr_A[1])
+#                         + (np.conj(probe)[2, 1] * arr_A[2])
+#                     )
+#     
+#                     obj[:, :, yi:yf, xi:xf] = obj_tmp
+#                     
+# =============================================================================
+                    #plot_obj(config, obj)
+    
+                #if update == "probe" or "both":
                 
                 ### to be extended in the immediate future
 
@@ -451,13 +472,14 @@ if __name__ == "__main__":
 
     print("Testing internal operations")
 
-    config = config("/opt/data/sim_data/henry_02/", iterations=5)
+    config = config("/opt/data/sim_data/henry_02/", iterations=100)
     print("config class: Pass")
 
     data = load_data(config)
     print("data loading: Pass")
 
     probe = calc_probe(config)
+
     print("initialising probe guess: Pass")
 
     obj, probe = reconstruction(config, data, probe, update="both")
