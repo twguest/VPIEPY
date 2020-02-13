@@ -312,10 +312,12 @@ def reconstruction(config, data, probe, update="object"):
             rand_pos = np.random.permutation(config.npts)
 
             # pdb.set_trace()
+            D = 0
+            delta_p = np.zeros(probe.shape).astype(config.c_dtype)
 
             # loop over the number of scan points
             for j in tqdm(np.arange(config.npts), desc="npts"):
-
+                
                 jj = rand_pos[j]
 
                 # work out the ROI on the larger object array that corresponds to the k^th projection
@@ -329,14 +331,32 @@ def reconstruction(config, data, probe, update="object"):
 
                 # crop out the relevant part of the sample
                 trans_crop = copy(obj[:, :, yi:yf, xi:xf])
-
+                
+                lx,ly = list(config.theta_a), list(config.theta_a)
+                ly.reverse()
+                
+                axx, ayx, axy, ayy = 0,0,0,0
+                for l in range(len(lx)):
+                    axx += np.abs(analysis_op(lx[l])[0]**2)
+                    ayy += np.abs(analysis_op(lx[l])[1]**2)
+                    axy += analysis_op(lx[l])[1]*np.conj(analysis_op(lx[l])[0])
+                    ayx += analysis_op(lx[l])[0]*np.conj(analysis_op(lx[l])[1])
+                
+                
+                f = np.array([axx, ayx, axy, ayy]).reshape([2,2])
+                
+                D_ = np.conj(trans_crop).T*f #scaling factor
+                D_[:,:,0,0] = D_[:,:,0,0]*trans_crop[0,0]
+                D_[:,:,1,1] = D_[:,:,0,0]*trans_crop[1,1]
+                
+                D += np.diag(np.array([D_[:,:,0,0], 0, 0, D_[:,:,1,1]]).reshape(2,2))
+        
                 # loop over the number of incident polarisation settings
                 for k in np.arange(config.pmodes):
                     esw = jones.jones_product(trans_crop, probe[k])
                     
                     # loop over the number of analyser settings
                     for l in np.arange(config.amodes):
-                        delta_p = np.zeros(probe.shape).astype(config.c_dtype)
 
                         # store the diffraction data in a temp array
                         temp_diff_amp = copy(data[jj, k, l])
@@ -398,17 +418,16 @@ def reconstruction(config, data, probe, update="object"):
                             ).astype(config.c_dtype)
                             modfact = np.sqrt(ff_error)
  
-                            lx,ly = list(config.theta_a), list(config.theta_a)
-                            ly.reverse()
-                            
-                            axx, ayy = 0,0
-                            for l in range(len(lx)):
-                                axx += np.abs(analysis_op(lx[l])**2)
-                                axx += np.abs(analysis_op(ly[l])**2)
-                            
-                            D = np.diag( np.conj(obj * 2 ))#scaling factor))
-            probe = probe + delta_p *(1/D)
+
+              
+
+
+            probe = probe - delta_p[k,0]#/D[0]
+            plt.imshow(np.real(D[0]))
+            plt.show()
+            probe = probe - delta_p[k,1]#/D[1]
             plot_probe(config, probe)
+            plot_obj(config, obj)
 
 # =============================================================================
 # 
