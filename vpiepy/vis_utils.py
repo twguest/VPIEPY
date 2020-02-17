@@ -89,12 +89,12 @@ def plot_probe(config, probe):
         r"$\psi_{3,y}$", (0.75, 0.10), textcoords="axes fraction", size=25, c="w"
     )
 
-    im = ax1.imshow(np.real(probe[0, 0,]))
-    ax2.imshow(np.real(probe[0, 1,]))
-    ax3.imshow(np.real(probe[1, 0,]))
-    ax4.imshow(np.real(probe[1, 1,]))
-    ax5.imshow(np.real(probe[2, 0,]))
-    ax6.imshow(np.real(probe[2, 1,]))
+    im = ax1.imshow(np.real(probe[0, 0,])**2)
+    ax2.imshow(np.real(probe[0, 1,]**2))
+    ax3.imshow(np.real(probe[1, 0,]**2))
+    ax4.imshow(np.real(probe[1, 1,]**2))
+    ax5.imshow(np.real(probe[2, 0,]**2))
+    ax6.imshow(np.real(probe[2, 1,]**2))
 
     fig_amp.colorbar(im, ax=axes)
     #######################################################
